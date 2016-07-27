@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: assignments.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: assignments.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>
+//global variables
+var PROJECT_ID;
+var PROJECT_NAME;
+var button_clicked;
+var is_uploaded=false;
+var AssignmentID;
+var arrayLength;
+var is_uploaded2=false;
+var secid;
+var sectionID;
+var submitted=false;
+
+$(document).ready(function(){
+	$("#uploadfile").hide();
+	disableTable();
+
+	//clear the text input
+	$('input[type=text]').val('');
+
+	//Let modal could be scrolled after upload modal pops up
+	$('.modal').on('hidden.bs.modal', function (e) {
+    if($('.modal').hasClass('in')) {
+    $('body').addClass('modal-open');
+    }
+});
+
+	//Get which buttons has been pressed to get section id
+	$("button").click(function() {
+
+		//assignment button (for professor page only)
+		if(this.value=='assignment') {
+			button_clicked = this.id;
+			secid=button_clicked.split("_")[2];
+		}
+
+		//edit button (for professor page only)
+		else if(this.value=='editBtn'){
+			getAssignmentInfo(this);
+		}
+
+		//import button(for student page only)
+		else if(this.value=='importBtn')
+		{
+			importAssignment(this.id);
+		}
+
+	});
+	
+	$("#uploadModal_ok").click(function(event) {
+		online_request();
+		var modal=$("#uploadModal");
+		var input_file_upload = $("#input_file_upload").val();
+		var fileForm = $("#form_fileInput");
+		console.log(typeof(modal),modal);
+		console.log(typeof(input_file_upload),input_file_upload);
+		console.log(typeof(fileForm),fileForm);
+		uploadFile(input_file_upload,fileForm,"uploadAssignment/",modal,"uploadfile",true);
+	});
+
+	$("#uploadModal_ok2").click(function(event) {
+		online_request();
+		var modal=$("#uploadModal2");
+		var input_file_upload = $("#input_file_upload2").val();
+		var fileForm = $("#form_fileInput2");
+		uploadFile(input_file_upload,fileForm,"edituploadAssignment/",modal,"uploadfile2",false);
+
+	});
+
+	$("#delete_this_assignment").click(function () {
+		$('#confirmModal').css({
+				top: ((window.innerHeight / 4) ),
+				left: ((window.innerWidth / 2048 / 4) )
+				})
+		$("#confirmModal").modal('show');
+		$("#modalLabel_confirm").text('Are you sure to delete this assignment?');
+		$("#ConfirmNote").text('Note: Deleting action will result in losing all info towards this assignment.')
+
+	});
+
+	$("#confirm_ok").click(function () {
+		online_request();
+		$.ajax({
+	    type: "post",
+	    url: "deleteAssignment/",
+		data: {"assignment_id":AssignmentID},
+	    success: function(return_message){
+			$("#editAssignmentModal").modal("hide");
+			window.location.reload();
+	    },
+	    error: function(jq, status, errorMessage){
+
+			alert('A error has occurred. Status: ' + status + ' - Message: ' + errorMessage);
+	    }
+	});
+
+	});
+	
+	$("#submit_new_assignment").click(function(){
+		online_request();
+		var AssignmentName=$(document.getElementById("AssignmentName")).val();
+		var AssignmentDescription=$(document.getElementById("AssignmentDescription")).val();
+		var StartDate=$(document.getElementById("datetimepicker")).val();
+		var DueDate=$(document.getElementById("datetimepicker2")).val();
+		var table=document.getElementById("TestcaseList");
+
+		newAssignment(AssignmentName,AssignmentDescription,StartDate,DueDate,table);
+
+
+
+	});
+
+	$("#submit_this_assignment").click(function () {
+		online_request();
+		var AssignmentDescription=$(document.getElementById("AssignmentDescription2")).val();
+		var StartDate=$(document.getElementById("datetimepicker3")).val();
+		var DueDate=$(document.getElementById("datetimepicker4")).val();
+		var table=document.getElementById("TestcaseList2");
+
+		editAssignment(AssignmentDescription,StartDate,DueDate,table);
+
+
+	})
+
+	$('#editAssignmentModal').on('hidden.bs.modal', function (e) {
+		var table=document.getElementById("TestcaseList2");
+		var length=table.rows.length;
+		//clear all the textbox input
+      	$('input[type=text]').val('');
+		//To prevent duplicate tabel rows appear when reopen the modal
+		for (var i = 0; i &lt;length; i++) {
+			deleteOneRow("TestcaseList2");
+		}
+ });
+
+	$('#newAssignmentModal').on('hidden.bs.modal', function (e) {
+		var table=document.getElementById("TestcaseList");
+		var length=table.rows.length;
+		//clear all the textbox input
+      	$('input[type=text]').val('');
+		//To prevent duplicate tabel rows appear when reopen the modal
+		for (var i = 0; i &lt; length; i++) {
+			deleteOneRow("TestcaseList");
+		}
+
+		//If quit modal and did not click submit,nothing will be saved to server, the uploaded file will be discarded.
+		if(submitted==false &amp;&amp; is_uploaded==true){
+			$.ajax({
+			type: "POST",
+            url: "cancelAssignment/",
+            data: {
+
+				"project_id":PROJECT_ID
+
+			},
+            success: function(returnMessage){
+
+                $("#editAssignmentModal").modal("hide");
+				window.location.reload();
+
+            },
+            error: function(jq, status, errorMessage){
+                alert('A error has occurred. Status: ' + status + ' - Message: ' + errorMessage);
+            }
+        });
+		}
+
+
+ });
+
+    $(".create_btn").click(function(){
+
+	var secid = $(this).parent().parent().attr("id").slice("8");
+	$("#sectionid").val(secid);
+   	$("#modal_create").modal("hide");
+    });
+
+    $("#importBtn").click(function(){
+
+	$("#importing_Modal").modal("show");
+
+	var assignments_str = "asd";
+
+
+	$(".ul_assignments").each(function(){
+	    $(this).find("li.active").each(function(){
+		assignments_str += $(this).attr("id") + " ";
+	    });
+	});
+
+
+	$.ajax({
+	    type: "post",
+	    url: "importAssignment/",
+	    data: {"assignments_str": assignments_str},
+	    success: function(return_message){
+			$("#importing_Modal").modal("hide");
+			$("#message_doneImport").text(return_message);
+	    },
+	    error: function(jq, status, errorMessage){
+			$("#importing_Modal").modal("hide");
+			alert('A error has occurred. Status: ' + status + ' - Message: ' + errorMessage);
+	    }
+	});
+
+    });
+
+    $(".li_assignment").click(function(){
+	if($(this).hasClass("active")){
+	    $(this).removeClass("active");
+	} else{
+	    // $(this).prepend($('&lt;span class="glyphicon glyphicon-ok pull-right" aria-hidden="true">&lt;/span>'));
+	    $(this).addClass("active");
+	}
+    });
+
+
+
+
+});
+
+/**
+ * Get assignment information when user clicked edit button.
+ * The blank will be filled out by the information that fetched from server.
+ * Seven elements are expected to be returned from server.
+ * @param {Object} clicked_btn - The button contains section id,assignment name and assignment id inside button id.
+ * @throws If the returned data from server lack any of element, the method will terminate
+
+ */
+function getAssignmentInfo(clicked_btn){
+	sectionID=clicked_btn.id.split('_')[0];
+	var Assignment=clicked_btn.id.split('_')[2];
+	AssignmentID=clicked_btn.id.split('_')[3];
+
+	online_request();
+	$.ajax({
+		type: "POST",
+		url: "editAssignment/",
+		data: {
+			"secid":sectionID,
+			"AssignmentName":Assignment,
+			"AssignmentID":AssignmentID
+		},
+		success: function(returnMessage) {
+			$("#uploadfile2").hide();
+			//Get data from server.     returnData example: "PA05","this is PA05","2016-07-15 14:15"."2016-07-21 00:00",[T1,T2],[Arg1.Arg2],[Comment1,Comment2]
+			var returnData = JSON.parse(returnMessage);
+			if(returnData.length!=7){
+				return;
+			}
+			var AssignmentName=returnData[0];
+			var AssignmentComment=returnData[1];
+			var StartDate=returnData[2].substring(0,16);
+			var DueDate=returnData[3].substring(0,16);
+			var TestcaseNameList=returnData[4];
+			var TestcaseArgList=returnData[5];
+			var TestcaseCommentList=returnData[6];
+
+			//Fill out assignment form by returned data, leave as blank if the data is not returned
+			document.getElementById("AssignmentName2").value= AssignmentName;
+			document.getElementById("AssignmentDescription2").value=AssignmentComment;
+			if(StartDate=="None"){
+				document.getElementById("datetimepicker3").value="";
+			}
+			else{
+				document.getElementById("datetimepicker3").value=StartDate;
+			}
+			if(DueDate=="None"){
+				document.getElementById("datetimepicker4").value="";
+			}
+			else{
+				document.getElementById("datetimepicker4").value=DueDate;
+			}
+
+			//Cannot change assignment name once submitted
+			document.getElementById('AssignmentName2').disabled = true;
+
+
+			arrayLength = TestcaseNameList.length;
+
+			//append table while loading the page
+			for (var i = 0; i &lt; arrayLength; i++) {
+				TestcaseNameList[i]=TestcaseNameList[i];
+				TestcaseArgList[i]=TestcaseArgList[i];
+				TestcaseCommentList[i]=TestcaseCommentList[i];
+				addOneRow(TestcaseNameList[i],TestcaseArgList[i],TestcaseCommentList[i]);
+			}
+
+		},
+		error: function(jq, status, errorMessage){
+			alert('A error has occurred. Status: ' + status + ' - Message: ' + errorMessage);
+		}
+
+	});
+}
+
+/**
+ * Send asynchronous request to serverside to import assignment to user's project folder.
+ * The function will only be called when identity is student since otherwise there will be no import button in html.
+ *
+ * @param {String} BtnId - The button id that will be used to identify which assignment 
+ * will student desire to import //format:sectionId_assignmentName  example: 1_PA02
+ */
+function importAssignment(BtnId){
+	$("#importing_Modal").modal("show");
+	
+	var assignments_str = "";
+	assignments_str += BtnId ;
+
+	$.ajax({
+		type: "post",
+		url: "importAssignment/",
+		data: {"assignments_str": assignments_str},
+		success: function(return_message){
+			$("#importing_Modal").modal("hide");
+			$("#message_doneImport").text(return_message);
+		},
+		error: function(jq, status, errorMessage){
+			$("#importing_Modal").modal("hide");
+			alert('A error has occurred. Status: ' + status + ' - Message: ' + errorMessage);
+		}
+	});
+}
+
+/**
+ * Send asynchronous request to serverside to upload a zip. The serverside will generate new project according to
+ * information that are sent through Ajax
+ * Will set global variable(flag) after successfully return.
+ * The global variable PROJECT_ID and PROJECT_NAME will be set as well according to return message from server.
+ * @param {String} input_file_upload - The name of zip to be uploaded. It will be used to indicate which file has been uploaded to user
+ * @param {Object} fileform  - An form object that will be used to generate a new FormData data type.
+ * @param {String} url  -  Tell Ajax which view needed to be linked. There are two options: uploadAssignment/ and uploadAssignment2/
+ * @param {Object}  uploadModal-  Which upload modal needs to be dismissed after successfully return from server. There are two options:
+ * $("#uploadModal") and $("#uploadModal2")
+ * @param {String}  uploadId  -  Where to indicate the file has been uploaded.
+ * @param {Boolean} flag  -  indicate which upload button has been clicked, whether in new assignment modal or edit assignment modal
+ */
+function uploadFile(input_file_upload,fileForm,url,uploadModal,uploadId,flag){
+	file_form_data = new FormData(fileForm[0]);
+	$.ajax({
+		type: "POST",
+		url: url,
+		data: file_form_data,
+		//Following two lines: tell jQuery not to process the data tell jQuery not to set contentType
+		processData: false,
+		contentType: false,
+		success: function (returnMessage) {
+
+			var project_info=JSON.parse(returnMessage);
+
+			PROJECT_ID=project_info[0];
+			PROJECT_NAME=project_info[1];
+
+			// dismiss the modal
+			uploadModal.modal("hide");
+
+			document.getElementById(uploadId).innerHTML = input_file_upload;
+			$("#uploadfile").show();
+			if(flag==true){
+				is_uploaded=true;
+			}
+			else{
+				is_uploaded2=true;
+			}
+
+
+
+
+		},
+		error: function (jq, status, errorMessage) {
+			alert('A error has occurred. Status: ' + status + ' - Message: ' + errorMessage);
+		}
+
+	});
+}
+
+/**
+ * Disable table cell, content are non-editable.
+
+ */
+function disableTable() {
+   var rows = document.getElementsByTagName("tr");
+   for (var i = 0; i &lt; rows.length; i++) {
+     rows[i].onmouseover= null;
+   }
+  }
+
+/**
+ * Check input, if validate, send asynchronous request to server to create a new assignment. If not, pop up warning window.
+ * Add one list item for html if return successfully. Will reload the page after adding one assignment.
+ * @param {String} AssignmentName - The name of assignment. Required. Cannot use same name for two different assignments.
+ * @param {String} AssignmentDescription - The description of assignment. Optional.
+ * @param {String} StartDate - The start date of assignment. Fetch the string of DateTimePicker. Optional.
+ * @param {String} DueDate - The due date of assignment. Fetch the string of DateTimePicker2. Optional.
+ * @param {Object}  table - The content of testcase table. Format: [[name1],[arguments1],[comment1]],[[name2],[arguments2],[comment2]]...
+ * It will be transposed to three-dimentional array, one for name, one for arguments, and one fot comment.
+ */
+function newAssignment(AssignmentName,AssignmentDescription,StartDate,DueDate,table) {
+	//tranpose the array from [[name],[arguments],[comment]] to [[name1,name2,...],[argument1,argument2,...],[comment1,comment2,..]]
+	var tableArray = getTableArray(table);
+
+	//check input
+
+	//must name the assignment
+	if (checkInput(AssignmentName, "AssignmentName") == false) {
+		return;
+	}
+    //must upload a zip that contains assignment files
+	if (is_uploaded == false) {
+		$('#alertModal').css({
+			top: ((window.innerHeight / 4) ),
+			left: ((window.innerWidth / 2048 / 4) )
+		})
+		$("#alertModal").modal('show');
+		$("#modalLabel_alert").text('Please Upload a zip that contains assignment files');
+
+		return;
+	}
+	//Due date cannot be prior to start date
+	if (DateCheck(StartDate, DueDate) == false) {
+
+		return;
+	}
+
+	//send ajax to serverside
+	$.ajax({
+		type: "POST",
+		url: "submitAssignment/",
+		data: {
+			"secid": secid,
+			"project_id": PROJECT_ID,
+			"project_name": PROJECT_NAME,
+			"Testcase": JSON.stringify(tableArray),
+			"due_date": DueDate, "start_date": StartDate,
+			"assignmentComment": AssignmentDescription,
+			'assignmentName_upload': AssignmentName
+		},
+		success: function (returnMessage) {
+			submitted = true;
+			$("#newAssignmentModal").modal("hide");
+			var itemID = secid + "_" + AssignmentName;
+			$("#ul" + secid).append('&lt;li class="li_assignment" id="' + itemID + '">' +
+				'&lt;h6 style="padding-left: 25px;color: #3a9ad5">' + AssignmentName + '&lt;button id="edit" class="edit" aria-hidden="true" style="width:30px;height:30px;' +
+				'border: 3px solid transparent; background-color:white; padding-right:2px;">&lt;img src="/static/img/base/edit.png" width="100%" height="auto">&lt;/button> &lt;/h6> &lt;/li>')
+			window.location.reload();
+		},
+		error: function (jq, status, errorMessage) {
+			alert('A error has occurred. Status: ' + status + ' - Message: ' + errorMessage);
+		}
+	});
+
+}
+
+/**
+ * Check input, if validate, send asynchronous request to server to update selected assignment infomation. If not, pop up warning window.
+ * Don't need assignment name. The existed information could be cleared. Will reload the page after submit the edit request.
+ * @param {String} AssignmentDescription - The description of assignment.
+ * @param {String} StartDate - The start date of assignment. Fetch the string of DateTimePicker3.
+ * @param {String} DueDate - The due date of assignment. Fetch the string of DateTimePicker4.
+ * @param {Object}  table - The content of testcase table. Format: [[name1],[arguments1],[comment1]],[[name2],[arguments2],[comment2]]...
+ * It will be transposed to three-dimentional array, one for name, one for arguments, and one fot comment.
+ */
+function editAssignment(AssignmentDescription,StartDate,DueDate,table){
+	//tranpose the array from [[name],[arguments],[comment]] to [[name1,name2,...],[argument1,argument2,...],[comment1,comment2,..]]
+	var tableArray = getTableArray(table);
+
+	if(DateCheck(StartDate,DueDate)==false){
+		return;
+	}
+	$.ajax({
+		type: "POST",
+		url: "editsubmitAssignment/",
+		data: {
+			"assignment_id":AssignmentID,
+			"Testcase":JSON.stringify(tableArray),
+			"due_date":DueDate,"start_date": StartDate,
+			"assignmentComment": AssignmentDescription,
+			"project_id":PROJECT_ID,
+			"project_name":PROJECT_NAME,
+			"secid":sectionID,
+			"is_upload":is_uploaded2
+		},
+		success: function(returnMessage){
+
+			$("#editAssignmentModal").modal("hide");
+			window.location.reload();
+
+		},
+		error: function(jq, status, errorMessage){
+			alert('A error has occurred. Status: ' + status + ' - Message: ' + errorMessage);
+		}
+	});
+}
+
+/**
+ * Check input given input text name. If none assignment is typed in or the name already exists, a warning window will pops up.
+ *
+ * @param {String} fn - Assignment name from input box.
+ * @param {String} id - Id of input box. For correct input, set border green. For invalid input, set red color.
+ * @returns {Boolean}
+ */
+function checkInput(fn,id) {
+	if(fn == ""){
+		 $('#alertModal').css({
+      top: ((window.innerHeight/4) ),
+      left:((window.innerWidth/2048/4) )
+    });
+		$("#alertModal").modal('show');
+
+		$("#modalLabel_alert").text('Please Enter Assignment Name');
+
+        document.getElementById(id).style.borderColor = "red";
+        return false;
+    }else{
+        document.getElementById(id).style.borderColor = "green";
+
+    }
+}
+
+/**
+ * Add all the testcases in list to the table, one testcase takes one line. Will be recursively called.
+ *
+ * @param {String} name - Testcase name. This is required.
+ * @param {String} arg - Testcase argument. Format: arg1;arg2;arg3.
+ * @param {String} comment - Comment for testcase. Optional.
+ */
+function addOneRow(name,arg,comment) {
+	
+	var oTable = document.getElementById("TestcaseList2");
+	var tBodies = oTable.tBodies;
+	var tbody = tBodies[0];
+	var tr = tbody.insertRow(tbody.rows.length);
+	var td_1 = tr.insertCell(0);
+	td_1.innerHTML = name;
+	var td_2 = tr.insertCell(1);
+	var td_3 =tr.insertCell(2);
+	if(arg=="None"){
+		td_2.innerHTML=""
+	}
+	else{
+		td_2.innerHTML = arg;
+	}
+	if(comment=="None"){
+		td_3.innerHTML=""
+	}
+	else{
+		td_3.innerHTML = comment;
+	}
+
+}
+
+/**
+ * Delete row after modal hidden. Prevent duplicate rows being added. Will be recursively called.
+ *
+ * @param {String} ID - Table Id.
+ */
+function deleteOneRow(ID) {
+
+
+    var table = document.getElementById(ID);
+    var rowCount = table.rows.length;
+
+    if(rowCount!=1){
+    table.deleteRow(rowCount -1);}
+}
+
+/**
+ * Check start date and due date before submitting assignment information.
+ * For each date string, first change the format to make it fit Date data type in Javascript. Then
+ * use date comparison property of Date data type.
+ * @param {String} StartDate - The start date of assignment.
+ * @param {String} DueDate - The due date of assignment.
+ * @param {Boolean}
+ */
+function DateCheck(StartDate,DueDate){
+	if(StartDate!="" &amp;&amp; DueDate!="")
+		{
+			//For startdate
+			var sdate = StartDate.split(" ")[0];
+
+			if(sdate.indexOf("/") > -1)
+			{
+				sdate = sdate.split("/");
+				sdate=sdate[0]+"-"+sdate[1]+"-"+sdate[2];
+			}
+
+
+			var stime=StartDate.split(" ")[1];
+
+			var timestring1=sdate+'T'+stime+":00";
+			sdate=new Date(timestring1);
+
+			//For duedate
+			var ddate = DueDate.split(" ")[0];
+
+			if(ddate.indexOf("/") > -1)
+			{
+				ddate = ddate.split("/");
+				ddate=ddate[0]+"-"+ddate[1]+"-"+ddate[2];
+			}
+			var dtime=DueDate.split(" ")[1];
+			var timestring2=ddate+'T'+dtime+":00";
+			ddate=new Date(timestring2);
+
+			if(ddate&lt;=sdate)
+			{
+				$('#alertModal').css({
+				top: ((window.innerHeight / 4) ),
+				left: ((window.innerWidth / 2048 / 4) )
+				})
+				$("#alertModal").modal('show');
+				$("#modalLabel_alert").text('Due Date cannot be prior to Start Date');
+				return false;
+			}
+
+
+		}
+	return true;
+}
+
+/**
+ * First fetch the testcase list from table objects.
+ * @param {Object} table - The table object that contains original user input testcase on html
+ * @returns {Array} newArray - The desired format of testcase list. An array of three arrays. One for name, one for arguments, the
+ * other for comment.
+ * @example
+   * Usage:
+   *   newArray = getTableArray(originArray)
+   *   originArray format:
+ *   [[name1],[arguments1],[comment1]], [[name2],[arguments2],[comment2]]
+   *     ... one list is for one row on table
+   *
+   *   newArray format:
+   *   [[name1,name2,...],[argument1,argument2,...],[comment1,comment2,..]]
+   *   three list in total, one for name, one for arguments, one for comments
+   *
+
+ */
+function getTableArray(table){
+		var TestcaseList=[];
+		var Tuple=[];
+		//push present table element into a list of lists
+		//one list for one test case(name,argument,comment)
+		if(table.rows.length>=2) {
+			for (var r = 1, n = table.rows.length; r &lt; n; r++) {
+
+				for (var c = 0, m = table.rows[r].cells.length; c &lt; m; c++) {
+					if(table.rows[r].cells[c].innerHTML==""){
+						Tuple.push("None");
+					}
+					else{
+						Tuple.push(table.rows[r].cells[c].innerHTML);
+					}
+
+				}
+				TestcaseList.push(Tuple);
+
+				Tuple=[];
+			}
+
+		}
+
+		var newArray = []
+		//transpose table element list one coloum for name, one for arguments, one for comments
+		if(TestcaseList.length!=0)
+		{
+			newArray = TestcaseList[0].map(function(col, i) {
+  			return TestcaseList.map(function(row) {
+    			return row[i]
+  			})
+		});
+		}
+		return newArray;
+}
+
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#addOneRow">addOneRow</a></li><li><a href="global.html#checkInput">checkInput</a></li><li><a href="global.html#DateCheck">DateCheck</a></li><li><a href="global.html#deleteOneRow">deleteOneRow</a></li><li><a href="global.html#disableTable">disableTable</a></li><li><a href="global.html#editAssignment">editAssignment</a></li><li><a href="global.html#getAssignmentInfo">getAssignmentInfo</a></li><li><a href="global.html#getTableArray">getTableArray</a></li><li><a href="global.html#importAssignment">importAssignment</a></li><li><a href="global.html#newAssignment">newAssignment</a></li><li><a href="global.html#uploadFile">uploadFile</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.0</a> on Wed Jul 27 2016 12:54:48 GMT-0400 (EDT)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
